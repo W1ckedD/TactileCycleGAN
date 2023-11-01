@@ -22,7 +22,7 @@ class UnPairedDataSet(Dataset):
   def __getitem__(self, idx):
     path_a = self.source_imgs[idx]
     path_b = np.random.choice(self.target_imgs)
-    img_a = Image.open(path_a).conver('RGP')
+    img_a = Image.open(path_a).conver('RGB')
     img_b = np.load(path_b)
 
     img_a = self.transforms(img_a)
@@ -33,6 +33,20 @@ class UnPairedDataSet(Dataset):
   def __len__(self):
     return max(len(self.source_imgs, self.target_imgs))
   
+
+class PairedDataset(Dataset):
+  def __init__(self, source_dir, target_dir, img_size=(224, 224)):
+    self.source_dir = source_dir
+    self.target_dir = target_dir
+    self.img_size = img_size
+
+  def __getitem__(self, idx):
+    pass
+
+  def __len__(self):
+    pass
+
+
 
 def load_data(data_dir, batch_size=32):
   train_dir = os.path.join(data_dir, 'train')
