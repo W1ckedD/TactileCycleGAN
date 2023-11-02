@@ -20,8 +20,8 @@ class UnPairedDataSet(Dataset):
     ])
 
   def __getitem__(self, idx):
-    path_a = self.source_imgs[idx]
-    path_b = np.random.choice(self.target_imgs)
+    path_a = os.path.join(self.source_dir, self.source_imgs[idx])
+    path_b = os.path.join(self.target_dir, np.random.choice(self.target_imgs))
     img_a = Image.open(path_a).conver('RGB')
     img_b = np.load(path_b)
 
@@ -40,11 +40,29 @@ class PairedDataset(Dataset):
     self.target_dir = target_dir
     self.img_size = img_size
 
+    self.source_imgs = os.listdir(self.source_dir)
+    self.target_imgs = os.listdir(self.target_dir)
+
+    self.transforms = transforms.Compose([
+      transforms.Resize(self.img_size),
+      transforms.ToTensor(),
+      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+
   def __getitem__(self, idx):
-    pass
+    path_a = os.path.join(self.source_dir, self.source_imgs[idx])
+    path_b = os.path.join(self.target_dir, self.source_imgs[idx].replace('.png', '.npy'))
+    
+    img_a = Image.open(path_a)
+    img_b = np.load(path_b)
+
+    img_a = self.transforms(img_a)
+    img_b = self.transforms(img_b)
+
+    return {'A': img_a, 'B': img_b}
 
   def __len__(self):
-    pass
+    return len(self.source_imgs)
 
 
 
