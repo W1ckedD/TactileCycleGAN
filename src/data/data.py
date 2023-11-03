@@ -14,15 +14,15 @@ class UnPairedDataSet(Dataset):
     self.target_imgs = os.listdir(self.target_dir)
 
     self.transforms = transforms.Compose([
-      transforms.Resize(self.img_size),
       transforms.ToTensor(),
-      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+      transforms.Resize(self.img_size, antialias=True),
+      # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
   def __getitem__(self, idx):
     path_a = os.path.join(self.source_dir, self.source_imgs[idx])
     path_b = os.path.join(self.target_dir, np.random.choice(self.target_imgs))
-    img_a = Image.open(path_a).conver('RGB')
+    img_a = Image.open(path_a).convert('RGB')
     img_b = np.load(path_b)
 
     img_a = self.transforms(img_a)
@@ -31,7 +31,7 @@ class UnPairedDataSet(Dataset):
     return {'A': img_a, 'B': img_b}
   
   def __len__(self):
-    return max(len(self.source_imgs, self.target_imgs))
+    return max(len(self.source_imgs), len(self.target_imgs))
   
 
 class PairedDataset(Dataset):
@@ -44,9 +44,9 @@ class PairedDataset(Dataset):
     self.target_imgs = os.listdir(self.target_dir)
 
     self.transforms = transforms.Compose([
-      transforms.Resize(self.img_size),
       transforms.ToTensor(),
-      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+      transforms.Resize(self.img_size, antialias=True),
+      # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
   def __getitem__(self, idx):
@@ -69,9 +69,9 @@ class PairedDataset(Dataset):
 def load_data(data_dir, batch_size=32):
   train_dir = os.path.join(data_dir, 'train')
   val_dir = os.path.join(data_dir, 'val')
-  test_dor = os.path.join(data_dir, 'test')
+  test_dir = os.path.join(data_dir, 'test')
 
-  train_set = UnPairedDataSet(os.path.join(train_dir, 'rbg'), os.path.join(train_dir, 'tactile'))
+  train_set = UnPairedDataSet(os.path.join(train_dir, 'rgb'), os.path.join(train_dir, 'tactile'))
 
   train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=2)
 
