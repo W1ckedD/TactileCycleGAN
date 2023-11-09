@@ -24,6 +24,7 @@ class UnPairedDataSet(Dataset):
     path_b = os.path.join(self.target_dir, np.random.choice(self.target_imgs))
     img_a = Image.open(path_a).convert('RGB')
     img_b = np.load(path_b)
+    img_b = img_b / 255
 
     img_a = self.transforms(img_a)
     img_b = self.transforms(img_b)

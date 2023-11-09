@@ -10,11 +10,11 @@ class Trainer:
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if model == 'pix2pix':
-      self.netG_A = UnetGenerator(input_nc=3, output_nc=4, num_downs=3).to(self.device)
-      self.netG_B = UnetGenerator(input_nc=4, output_nc=3, num_downs=3).to(self.device)
+      self.netG_AB = UnetGenerator(input_nc=3, output_nc=4, num_downs=3).to(self.device)
+      self.netG_BA = UnetGenerator(input_nc=4, output_nc=3, num_downs=3).to(self.device)
 
-      self.netD_A = NLayerDiscriminator(input_nc=4).to(self.device)
-      self.netD_B = NLayerDiscriminator(input_nc=3).to(self.device)
+      self.netD_A = NLayerDiscriminator(input_nc=3).to(self.device)
+      self.netD_B = NLayerDiscriminator(input_nc=4).to(self.device)
     else:
       pass
 
@@ -45,22 +45,24 @@ class Trainer:
       betas=self.betas
     )
 
-  def train_G(self, real_A, real_B):
+  def forward_pass(self, real_A, real_B):
+    fake_B = self.netG_AB(real_A)
+    rec_A = self.netG_BA(fake_B)
+    fake_A = self.netG_BA(real_B)
+    rec_B = self.netG_AB(fake_A)
+
+    return fake_A, fake_B, rec_A, rec_B
+
+  def train_G(self, real_A, real_B, fake_A, fake_B, rec_A, rec_B):
     self.optimizer_G.zero_grad()
 
-    # Forward G
-    fake_B = self.netG_A(real_A)
-    rec_A = self.netG_B(fake_B)
-    fake_A = self.netG_B(real_B)
-    rec_B = self.netG_A(fake_A)
 
     # Backward G
-    with torch.no_grad():
-      pred_A = self.netD_A(fake_B)
-      loss_G_A = self.criterionGAN(pred_A, torch.tensor(1, device=self.device).expand_as(pred_A))
+    pred_A = self.netD_A(fake_A)
+    loss_G_A = self.criterionGAN(pred_A, torch.tensor(1, device=self.device).expand_as(pred_A))
     
-      pred_B = self.netD_B(fake_A)
-      loss_G_B = self.criterionGAN(pred_B, torch.tensor(1, device=self.device).expand_as(pred_B))
+    pred_B = self.netD_B(fake_B)
+    loss_G_B = self.criterionGAN(pred_B, torch.tensor(1, device=self.device).expand_as(pred_B))
 
     loss_cycle_A = self.criterionCycle(rec_A, real_A) * self.lambda_a
     loss_cycle_B = self.criterionCycle(rec_B, real_B) * self.lambda_b
@@ -71,6 +73,29 @@ class Trainer:
 
     return loss_G
   
-  def train_D(self):
-    pass
+  def train_D(self, real_A, real_B, fake_A, fake_B):
+    self.optimizer_D.zero_grad()
 
+    pred_real_A = self.netD_A(real_A)
+    pred_real_B = self.netD_B(real_B)
+    pred_fake_A = self.netD_A(fake_A)
+    pred_fake_B = self.netD_B(fake_B)
+
+    loss_D_real_A = self.criterionGAN(pred_real_A, torch.tensor(1, device=self.device).expand_as(pred_real_A))
+    loss_D_real_B = self.criterionGAN(pred_real_B, torch.tensor(1, device=self.device).expand_as(pred_real_B))
+    loss_D_fake_A = self.criterionGAN(pred_fake_A, torch.tensor(0, device=self.device).expand_as(pred_fake_A))
+    loss_D_fake_B = self.criterionGAN(pred_fake_B, torch.tensor(0, device=self.device).expand_as(pred_fake_B))
+
+    loss_D = loss_D_real_A + loss_D_real_B + loss_D_fake_A + loss_D_fake_B
+
+    loss_D.backward()
+    self.optimizer_D.step()
+
+    return loss_D
+  
+  def train(self):
+    real_A = None
+    real_B = None
+    fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
+
+    #TODO: Perform train G and D
