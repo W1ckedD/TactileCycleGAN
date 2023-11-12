@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 import itertools
+from tqdm import tqdm
 
 from src.models.pix2pix import UnetGenerator, NLayerDiscriminator
+from src.data.data import load_data
 
 class Trainer:
-  def __init__(self, model='pix2pix', lr=1e-4, betas=(0.5, 0.999), lambda_a=10.0, lambda_b=10.0):
+  def __init__(self, model='pix2pix', lr=1e-4, betas=(0.5, 0.999), lambda_a=10.0, lambda_b=10.0, epochs=300, batch_size=8, data_dir='data'):
     
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -22,7 +24,12 @@ class Trainer:
     self.betas = betas
     self.lambda_a = lambda_a
     self.lambda_b = lambda_b
+    self.epochs = epochs
+    self.batch_size = batch_size
+    self.data_dir = data_dir
 
+    self.train_loader, _ = load_data(self.data_dir, batch_size=self.batch_size)
+    
     self.criterionGAN = nn.BCEWithLogitsLoss().to(self.device)
     self.criterionCycle = nn.L1Loss().to(self.device)
     # self.criterionIdt = nn.L1Loss() 
@@ -94,8 +101,17 @@ class Trainer:
     return loss_D
   
   def train(self):
-    real_A = None
-    real_B = None
-    fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
+    
+    for i in range(self.epochs):
+      print(f'Epoch {i + 1}/{self.epochs}:')
 
+      for item in tqdm(self.train_loader):
+        real_A = item['source'].to(self.device)
+        real_B = item['target'].to(self.device)
+        fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
+
+        epoch_loss_G = self.train_G(real_A, real_B, fake_A, fake_B, rec_A, rec_B)
+        epoch_loss_D = self.train_D(real_A, real_B, fake_A, fake_B)
+
+        
     #TODO: Perform train G and D

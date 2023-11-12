@@ -77,4 +77,4 @@ def load_data(data_dir, batch_size=32):
   train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=2)
 
 
-  return train_loader
+  return train_loader, ''
