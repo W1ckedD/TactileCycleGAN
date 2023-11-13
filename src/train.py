@@ -74,11 +74,13 @@ class Trainer:
     loss_cycle_A = self.criterionCycle(rec_A, real_A) * self.lambda_a
     loss_cycle_B = self.criterionCycle(rec_B, real_B) * self.lambda_b
 
-    loss_G = loss_G_A + loss_G_B + loss_cycle_A + loss_cycle_B
+    loss_G_adv = loss_G_A + loss_G_B
+    loss_cycle =  loss_cycle_A + loss_cycle_B
+    loss_G = loss_G_adv + loss_cycle
     loss_G.backward()
     self.optimizer_G.step()
 
-    return loss_G
+    return loss_G_adv, loss_cycle
   
   def train_D(self, real_A, real_B, fake_A, fake_B):
     self.optimizer_D.zero_grad()
@@ -101,17 +103,36 @@ class Trainer:
     return loss_D
   
   def train(self):
+    losses_g = []
+    losses_cycle = []
+    losses_d = []
     
     for i in range(self.epochs):
       print(f'Epoch {i + 1}/{self.epochs}:')
 
-      for item in tqdm(self.train_loader):
+      running_loss_G = 0.0
+      running_loss_cycle = 0.0
+      running_loss_D = 0.0
+
+      iterator = tqdm(self.train_loader)
+      for item in iterator:
         real_A = item['source'].to(self.device)
         real_B = item['target'].to(self.device)
         fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
 
-        epoch_loss_G = self.train_G(real_A, real_B, fake_A, fake_B, rec_A, rec_B)
-        epoch_loss_D = self.train_D(real_A, real_B, fake_A, fake_B)
+        batch_loss_G, batch_loss_cycle = self.train_G(real_A, real_B, fake_A, fake_B, rec_A, rec_B)
+        batch_loss_D = self.train_D(real_A, real_B, fake_A, fake_B)
 
-        
-    #TODO: Perform train G and D
+        msg = f'Lg: {batch_loss_G}, Lcycle: {batch_loss_cycle}, Ld: {batch_loss_D}'
+        iterator.set_description((msg))
+
+        running_loss_G += batch_loss_G
+        running_loss_cycle += batch_loss_cycle
+        running_loss_D += batch_loss_D
+
+      losses_g.append(running_loss_G / len(iterator))
+      losses_cycle.append(running_loss_cycle / len(iterator))
+      losses_d.append(running_loss_D / len(iterator))
+      
+
+    return losses_g, losses_cycle, losses_d
