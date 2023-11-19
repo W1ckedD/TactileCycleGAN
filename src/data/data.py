@@ -5,7 +5,7 @@ from torchvision import transforms
 from PIL import Image
 
 class UnPairedDataSet(Dataset):
-  def __init__(self, source_dir, target_dir, img_size=(224, 224)):
+  def __init__(self, source_dir, target_dir, img_size=(256, 256)):
     self.source_dir = source_dir
     self.target_dir = target_dir
     self.img_size = img_size
@@ -29,7 +29,7 @@ class UnPairedDataSet(Dataset):
     img_a = self.transforms(img_a)
     img_b = self.transforms(img_b)
 
-    return {'A': img_a, 'B': img_b}
+    return {'A': img_a, 'B': img_b.float()}
   
   def __len__(self):
     return max(len(self.source_imgs), len(self.target_imgs))
