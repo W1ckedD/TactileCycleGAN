@@ -27,7 +27,9 @@ class UnPairedDataSet(Dataset):
     img_b = img_b / 255
 
     img_a = self.transforms(img_a)
+    img_a = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(img_a)
     img_b = self.transforms(img_b)
+    img_b = transforms.Normalize((0.5, 0.5, 0.5, 0.5), (0.5, 0.5, 0.5, 0.5))(img_b)
 
     return {'A': img_a, 'B': img_b.float()}
   

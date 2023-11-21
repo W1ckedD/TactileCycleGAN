@@ -1,10 +1,12 @@
 import os
+import json
 import numpy as np
 import torch
 import torch.nn as nn
 import itertools
 from tqdm import tqdm
-from skimage.io import imsave
+from torchvision.utils import save_image
+
 
 from src.models.pix2pix import UnetGenerator, NLayerDiscriminator
 from src.data.data import load_data
@@ -93,23 +95,45 @@ class Trainer:
     os.makedirs(epoch_path, exist_ok=True)
     fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
 
-    real_A = real_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    real_B = real_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    fake_A = fake_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    fake_B = fake_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    rec_A = rec_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    rec_B = rec_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
+    # real_A = real_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
+    # real_B = real_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
+    # fake_A = fake_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
+    # fake_B = fake_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
+    # rec_A = rec_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
+    # rec_B = rec_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
 
     for i in tqdm(range(real_A.shape[0])):
       sample_path = os.path.join(epoch_path, f"{i}")
-      os.makedirs(sample_path, exist_ok=True)
-      imsave(f"{sample_path}/real_A.png", real_A[i])
-      imsave(f"{sample_path}/fake_A.png", fake_A[i])
-      imsave(f"{sample_path}/rec_A.png", rec_A[i])
+      real_path = os.path.join(sample_path, 'real')
+      fake_path = os.path.join(sample_path, 'fake')
+      rec_path = os.path.join(sample_path, 'rec')
 
-      np.save(f"{sample_path}/real_B.npy", real_B[i])
-      np.save(f"{sample_path}/fake_B.npy", fake_B[i])
-      np.save(f"{sample_path}/rec_B.npy", rec_B[i])
+      os.makedirs(real_path, exist_ok=True)
+      os.makedirs(fake_path, exist_ok=True)
+      os.makedirs(rec_path, exist_ok=True)
+      # print(real_A[i].shape)
+      save_image(real_A[i], f"{real_path}/real_A.png")
+      save_image(fake_A[i], f"{fake_path}/fake_A.png")
+      save_image(rec_A[i], f"{rec_path}/rec_A.png")
+
+      save_image(real_B[i, 0], f"{real_path}/real_B_buildings.png")
+      save_image(real_B[i, 1], f"{real_path}/real_B_green.png")
+      save_image(real_B[i, 2], f"{real_path}/real_B_roads.png")
+      save_image(real_B[i, 3], f"{real_path}/real_B_water.png")
+
+      save_image(fake_B[i, 0], f"{fake_path}/fake_B_buildings.png")
+      save_image(fake_B[i, 1], f"{fake_path}/fake_B_green.png")
+      save_image(fake_B[i, 2], f"{fake_path}/fake_B_roads.png")
+      save_image(fake_B[i, 3], f"{fake_path}/fake_B_water.png")
+
+      save_image(rec_B[i, 0], f"{rec_path}/rec_B_buildings.png")
+      save_image(rec_B[i, 1], f"{rec_path}/rec_B_green.png")
+      save_image(rec_B[i, 2], f"{rec_path}/rec_B_roads.png")
+      save_image(rec_B[i, 3], f"{rec_path}/rec_B_water.png")
+
+      # np.save(f"{sample_path}/real_B.npy", real_B[i])
+      # np.save(f"{sample_path}/fake_B.npy", fake_B[i])
+      # np.save(f"{sample_path}/rec_B.npy", rec_B[i])
     print('Done.')
 
 
@@ -185,13 +209,13 @@ class Trainer:
 
         
         batch_loss_G, batch_loss_cycle = self.train_G(real_A, real_B, fake_A, fake_B, rec_A, rec_B)
-        
+        msg = f'Lg: {batch_loss_G}, Lcycle: {batch_loss_cycle}'
         # Train the discriminator every 10 epochs
-        if i % 10:
+        if i % 2 == 0:
           fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
           batch_loss_D = self.train_D(real_A, real_B, fake_A, fake_B)
           running_loss_D += batch_loss_D.item()
-        msg = f'Lg: {batch_loss_G}, Lcycle: {batch_loss_cycle}, Ld: {batch_loss_D}'
+          msg += f", Ld: {batch_loss_D}"
         iterator.set_description((msg))
 
         running_loss_G += batch_loss_G.item()
@@ -216,9 +240,15 @@ class Trainer:
     return losses_g, losses_cycle, losses_d
 
 if __name__ == '__main__':
-  trainer = Trainer(epochs=100)
+  trainer = Trainer(epochs=100, batch_size=64, save_model_every=10, save_samples_every=10)
 
   l_G, l_C, l_D = trainer.train()
 
-  with open('losses.txt', 'w') as f:
-    f.writelines(f"L_G: {l_G}, L_C: {l_C}, L_D: {l_D}")
+  # for item in trainer.train_loader:
+  #   real_A = item['A'].to(trainer.device)
+  #   real_B = item['B'].to(trainer.device)
+  #   trainer.save_samples(1, real_A, real_B)
+  #   break
+
+  with open('losses.json', 'wb') as f:
+    f.write(json.dumps({'L_G': l_G, 'L_C': l_C, 'L_D': l_D}))

@@ -4,3 +4,5 @@
 *.npy
 *.npz
 *.zip
+*.pt
+*.txt
