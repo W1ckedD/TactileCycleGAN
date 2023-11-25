@@ -15,49 +15,68 @@ class Trainer:
   def __init__(
       self,
       model='pix2pix',
+      img_size=(256, 256),
       lr=1e-5,
       betas=(0.5, 0.999),
       lambda_a=10.0,
       lambda_b=10.0,
+      lambda_idt=0.5,
       epochs=300,
       batch_size=8,
       data_dir='data',
+      train_D_every=5,
       save_model_every=10,
       save_samples_every=10,
       save_model_dir='checkpoints',
-      save_samples_dir='samples'      
+      save_samples_dir='samples',
+      use_idt=False   
     ):
     
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if model == 'pix2pix':
-      self.netG_AB = UnetGenerator(input_nc=3, output_nc=4, num_downs=3).to(self.device)
-      self.netG_BA = UnetGenerator(input_nc=4, output_nc=3, num_downs=3).to(self.device)
+      self.netG_AB = UnetGenerator(input_nc=3, output_nc=4, num_downs=4).to(self.device)
+      self.netG_BA = UnetGenerator(input_nc=4, output_nc=3, num_downs=4).to(self.device)
 
       self.netD_A = NLayerDiscriminator(input_nc=3).to(self.device)
       self.netD_B = NLayerDiscriminator(input_nc=4).to(self.device)
     else:
       pass
-
+    
+    self.img_size = img_size
     self.lr = lr
     self.betas = betas
     self.lambda_a = lambda_a
     self.lambda_b = lambda_b
+    self.lambda_idt = lambda_idt
     self.epochs = epochs
     self.batch_size = batch_size
     self.data_dir = data_dir
+    self.train_D_every = train_D_every
     self.save_model_every = save_model_every
     self.save_samples_every = save_samples_every
     self.save_model_dir = save_model_dir
     self.save_samples_dir = save_samples_dir
+    self.use_idt = use_idt
 
-    self.train_loader, _ = load_data(self.data_dir, batch_size=self.batch_size)
+    self.train_loader, _ = load_data(self.data_dir, batch_size=self.batch_size, img_size=img_size)
     
     self.criterionGAN = nn.BCEWithLogitsLoss().to(self.device)
     self.criterionCycle = nn.L1Loss().to(self.device)
 
     # Since the number of channels in the source and target data is different, for now we will not use Identity loss.
-    # self.criterionIdt = nn.L1Loss() 
+    # OK maybe we should figure out a way to use it after all :)
+    self.criterionIdt = nn.L1Loss()
+
+    # Introduce two non-trainable conv layers just to even out the number of channels for samples in each domain
+    # Only and only used for Identity loss
+    self.AB_nc = nn.Conv2d(3, 4, 1).to(self.device)
+    for param in self.AB_nc.parameters():
+      param.requires_grad = False
+
+    self.BA_nc = nn.Conv2d(4, 3, 1).to(self.device)
+    for param in self.BA_nc.parameters():
+      param.requires_grad = False
 
     self.optimizer_G = torch.optim.Adam(
       itertools.chain(
@@ -93,14 +112,8 @@ class Trainer:
     print('Saving samples')
     epoch_path = os.path.join(self.save_samples_dir, f"{epoch + 1}")
     os.makedirs(epoch_path, exist_ok=True)
-    fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
+    fake_A, fake_B, rec_A, rec_B, idt_A, idt_B = self.forward_pass(real_A, real_B)
 
-    # real_A = real_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    # real_B = real_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    # fake_A = fake_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    # fake_B = fake_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    # rec_A = rec_A.permute((0, 2, 3, 1)).detach().cpu().numpy()
-    # rec_B = rec_B.permute((0, 2, 3, 1)).detach().cpu().numpy()
 
     for i in tqdm(range(real_A.shape[0])):
       sample_path = os.path.join(epoch_path, f"{i}")
@@ -111,7 +124,6 @@ class Trainer:
       os.makedirs(real_path, exist_ok=True)
       os.makedirs(fake_path, exist_ok=True)
       os.makedirs(rec_path, exist_ok=True)
-      # print(real_A[i].shape)
       save_image(real_A[i], f"{real_path}/real_A.png")
       save_image(fake_A[i], f"{fake_path}/fake_A.png")
       save_image(rec_A[i], f"{rec_path}/rec_A.png")
@@ -131,9 +143,6 @@ class Trainer:
       save_image(rec_B[i, 2], f"{rec_path}/rec_B_roads.png")
       save_image(rec_B[i, 3], f"{rec_path}/rec_B_water.png")
 
-      # np.save(f"{sample_path}/real_B.npy", real_B[i])
-      # np.save(f"{sample_path}/fake_B.npy", fake_B[i])
-      # np.save(f"{sample_path}/rec_B.npy", rec_B[i])
     print('Done.')
 
 
@@ -142,11 +151,16 @@ class Trainer:
     rec_A = self.netG_BA(fake_B)
     fake_A = self.netG_BA(real_B)
     rec_B = self.netG_AB(fake_A)
+    if self.use_idt:
+      idt_A = self.netG_AB(self.BA_nc(real_B))
+      idt_B = self.netG_BA(self.AB_nc(real_A))
+    else:
+      idt_A = None
+      idt_B = None
 
+    return fake_A, fake_B, rec_A, rec_B, idt_A, idt_B
 
-    return fake_A, fake_B, rec_A, rec_B
-
-  def train_G(self, real_A, real_B, fake_A, fake_B, rec_A, rec_B):
+  def train_G(self, real_A, real_B, fake_A, fake_B, rec_A, rec_B, idt_A, idt_B):
     self.optimizer_G.zero_grad()
 
 
@@ -156,18 +170,33 @@ class Trainer:
     
     pred_B = self.netD_B(fake_B)
     loss_G_B = self.criterionGAN(pred_B, torch.tensor(1, device=self.device).expand_as(pred_B).float())
-
+    
     loss_cycle_A = self.criterionCycle(rec_A, real_A) * self.lambda_a
     loss_cycle_B = self.criterionCycle(rec_B, real_B) * self.lambda_b
+    if self.use_idt:
+      loss_idt_A = self.criterionIdt(real_B, idt_A) * self.lambda_b * self.lambda_idt
+      loss_idt_B = self.criterionIdt(real_A, idt_B) * self.lambda_a * self.lambda_idt
+    else:
+      loss_idt_A = None
+      loss_idt_B = None
+      
 
     loss_G_adv = loss_G_A + loss_G_B
     loss_cycle =  loss_cycle_A + loss_cycle_B
+
+    if self.use_idt:
+      loss_idt = loss_idt_A + loss_idt_B
+    else:
+      loss_idt = None
+
     loss_G = loss_G_adv + loss_cycle
+    if self.use_idt:
+      loss_G += loss_idt
     loss_G.backward()
     self.optimizer_G.step()
 
-    # return 1, 2
-    return loss_G_adv, loss_cycle
+
+    return loss_G_adv, loss_cycle, loss_idt
   
   def train_D(self, real_A, real_B, fake_A, fake_B):
     self.optimizer_D.zero_grad()
@@ -190,8 +219,13 @@ class Trainer:
     return loss_D
   
   def train(self):
+    print(f"Training Discriminators every {self.train_D_every} epochs...")
+    print(f"Saving model snapshots every {self.save_model_every} epochs...")
+    print(f"Saving samples every {self.save_samples_every} epochs...")
+
     losses_g = []
     losses_cycle = []
+    losses_idt = []
     losses_d = []
     
     for i in range(self.epochs):
@@ -199,27 +233,32 @@ class Trainer:
 
       running_loss_G = 0.0
       running_loss_cycle = 0.0
+      running_loss_idt = 0.0
       running_loss_D = 0.0
 
       iterator = tqdm(self.train_loader)
       for item in iterator:
         real_A = item['A'].to(self.device)
         real_B = item['B'].to(self.device)
-        fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
+        fake_A, fake_B, rec_A, rec_B, idt_A, idt_B = self.forward_pass(real_A, real_B)
 
         
-        batch_loss_G, batch_loss_cycle = self.train_G(real_A, real_B, fake_A, fake_B, rec_A, rec_B)
-        msg = f'Lg: {batch_loss_G}, Lcycle: {batch_loss_cycle}'
-        # Train the discriminator every 10 epochs
-        if i % 2 == 0:
-          fake_A, fake_B, rec_A, rec_B = self.forward_pass(real_A, real_B)
+        batch_loss_G, batch_loss_cycle, batch_loss_idt = self.train_G(real_A, real_B, fake_A, fake_B, rec_A, rec_B, idt_A, idt_B)
+        msg = f'Lg: {batch_loss_G}, Lcycle: {batch_loss_cycle}{f", Lidt: {batch_loss_idt}" if self.use_idt else ""}'
+        
+        # Train the discriminator every 5 epochs
+        if i % self.train_D_every == 0:
+          fake_A, fake_B, rec_A, rec_B, idt_A, idt_B = self.forward_pass(real_A, real_B)
           batch_loss_D = self.train_D(real_A, real_B, fake_A, fake_B)
           running_loss_D += batch_loss_D.item()
           msg += f", Ld: {batch_loss_D}"
+
         iterator.set_description((msg))
 
         running_loss_G += batch_loss_G.item()
         running_loss_cycle += batch_loss_cycle.item()
+        if self.use_idt:
+          running_loss_idt += batch_loss_idt.item()
       
       if i % self.save_model_every == 0:
         self.save_model(i)
@@ -231,18 +270,27 @@ class Trainer:
 
       losses_g.append(running_loss_G / len(iterator))
       losses_cycle.append(running_loss_cycle / len(iterator))
+      losses_idt.append(running_loss_idt / len(iterator))
       losses_d.append(running_loss_D / len(iterator))
       
     torch.save(self.netG_AB.state_dict(), 'checkpoints/netG_AB.pt')
     torch.save(self.netG_BA.state_dict(), 'checkpoints/netG_BA.pt')
     torch.save(self.netD_A.state_dict(), 'checkpoints/netD_A.pt')
     torch.save(self.netD_B.state_dict(), 'checkpoints/netD_B.pt')
-    return losses_g, losses_cycle, losses_d
+    return losses_g, losses_cycle, losses_idt, losses_d
 
 if __name__ == '__main__':
-  trainer = Trainer(epochs=100, batch_size=64, save_model_every=10, save_samples_every=10)
+  trainer = Trainer(
+    img_size=(512, 512),
+    epochs=2,
+    batch_size=16,
+    save_model_every=10,
+    save_samples_every=10,
+    save_model_dir='checkpoints_512',
+    save_samples_dir='samples_512'
+  )
 
-  l_G, l_C, l_D = trainer.train()
+  l_G, l_C, l_IDT, l_D = trainer.train()
 
   # for item in trainer.train_loader:
   #   real_A = item['A'].to(trainer.device)
@@ -250,5 +298,5 @@ if __name__ == '__main__':
   #   trainer.save_samples(1, real_A, real_B)
   #   break
 
-  with open('losses.json', 'wb') as f:
-    f.write(json.dumps({'L_G': l_G, 'L_C': l_C, 'L_D': l_D}))
+  with open('losses.json', 'w') as f:
+    f.writelines(json.dumps({'L_G': l_G, 'L_C': l_C, 'L_IDT': l_IDT, 'L_D': l_D}))

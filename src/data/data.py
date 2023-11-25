@@ -69,12 +69,12 @@ class PairedDataset(Dataset):
 
 
 
-def load_data(data_dir, batch_size=32):
+def load_data(data_dir, batch_size=32, img_size=(256, 256)):
   train_dir = os.path.join(data_dir, 'train')
   val_dir = os.path.join(data_dir, 'val')
   test_dir = os.path.join(data_dir, 'test')
 
-  train_set = UnPairedDataSet(os.path.join(train_dir, 'rgb'), os.path.join(train_dir, 'tactile'))
+  train_set = UnPairedDataSet(os.path.join(train_dir, 'rgb'), os.path.join(train_dir, 'tactile'), img_size=img_size)
 
   train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=2)
 
