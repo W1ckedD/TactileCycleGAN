@@ -29,19 +29,12 @@ class Trainer:
       save_samples_every=10,
       save_model_dir='checkpoints',
       save_samples_dir='samples',
-      use_idt=False   
+      use_idt=False,
+      resume_ckpt_dir=None,
+      shuffle=False,
     ):
     
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    if model == 'pix2pix':
-      self.netG_AB = UnetGenerator(input_nc=3, output_nc=4, num_downs=4).to(self.device)
-      self.netG_BA = UnetGenerator(input_nc=4, output_nc=3, num_downs=4).to(self.device)
-
-      self.netD_A = NLayerDiscriminator(input_nc=3).to(self.device)
-      self.netD_B = NLayerDiscriminator(input_nc=4).to(self.device)
-    else:
-      pass
     
     self.img_size = img_size
     self.lr = lr
@@ -58,8 +51,25 @@ class Trainer:
     self.save_model_dir = save_model_dir
     self.save_samples_dir = save_samples_dir
     self.use_idt = use_idt
+    self.resume_ckpt_dir = resume_ckpt_dir
+    self.shuffle = shuffle
 
-    self.train_loader, _ = load_data(self.data_dir, batch_size=self.batch_size, img_size=img_size)
+    if model == 'pix2pix':
+      self.netG_AB = UnetGenerator(input_nc=3, output_nc=4, num_downs=4).to(self.device)
+      self.netG_BA = UnetGenerator(input_nc=4, output_nc=3, num_downs=4).to(self.device)
+
+      self.netD_A = NLayerDiscriminator(input_nc=3).to(self.device)
+      self.netD_B = NLayerDiscriminator(input_nc=4).to(self.device)
+
+      if self.resume_ckpt_dir:
+        self.netG_AB.load_state_dict(torch.load(f"{self.resume_ckpt_dir}/netG_AB.pt"))
+        self.netG_BA.load_state_dict(torch.load(f"{self.resume_ckpt_dir}/netG_BA.pt"))
+        self.netD_A.load_state_dict(torch.load(f"{self.resume_ckpt_dir}/netD_A.pt"))
+        self.netD_B.load_state_dict(torch.load(f"{self.resume_ckpt_dir}/netD_B.pt"))
+    else:
+      pass
+
+    self.train_loader, _ = load_data(self.data_dir, batch_size=self.batch_size, img_size=img_size, shuffle=shuffle)
     
     self.criterionGAN = nn.BCEWithLogitsLoss().to(self.device)
     self.criterionCycle = nn.L1Loss().to(self.device)
@@ -219,6 +229,12 @@ class Trainer:
     return loss_D
   
   def train(self):
+    print(f'Resuming training from checkpint path: {self.resume_ckpt_dir}...')
+    print('Please make sure to use a different save path to prevent overwriting the previous checkpoints.')
+    user_response = input('DO YOU WISH TO PROCEED?: [yes/no]')
+    if user_response.upper() != 'YES':
+      print('Training loop stopped.')
+      return
     print(f"Training Discriminators every {self.train_D_every} epochs...")
     print(f"Saving model snapshots every {self.save_model_every} epochs...")
     print(f"Saving samples every {self.save_samples_every} epochs...")
@@ -282,12 +298,14 @@ class Trainer:
 if __name__ == '__main__':
   trainer = Trainer(
     img_size=(512, 512),
-    epochs=2,
+    epochs=100,
     batch_size=16,
+    shuffle=True,
     save_model_every=10,
     save_samples_every=10,
-    save_model_dir='checkpoints_512',
-    save_samples_dir='samples_512'
+    save_model_dir='checkpoints_512_resume',
+    save_samples_dir='samples_512_resume',
+    resume_ckpt_dir='checkpoints_512/91'
   )
 
   l_G, l_C, l_IDT, l_D = trainer.train()

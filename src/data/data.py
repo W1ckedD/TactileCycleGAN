@@ -15,7 +15,7 @@ class UnPairedDataSet(Dataset):
 
     self.transforms = transforms.Compose([
       transforms.ToTensor(),
-      transforms.Resize(self.img_size, antialias=True),
+      # transforms.Resize(self.img_size, antialias=True),
       # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
@@ -69,14 +69,14 @@ class PairedDataset(Dataset):
 
 
 
-def load_data(data_dir, batch_size=32, img_size=(256, 256)):
+def load_data(data_dir, batch_size=32, img_size=(256, 256), shuffle=False):
   train_dir = os.path.join(data_dir, 'train')
   val_dir = os.path.join(data_dir, 'val')
   test_dir = os.path.join(data_dir, 'test')
 
   train_set = UnPairedDataSet(os.path.join(train_dir, 'rgb'), os.path.join(train_dir, 'tactile'), img_size=img_size)
 
-  train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=2)
+  train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=2, shuffle=True)
 
 
   return train_loader, ''
