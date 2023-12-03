@@ -301,8 +301,8 @@ if __name__ == '__main__':
     epochs=100,
     batch_size=16,
     shuffle=True,
-    save_model_every=10,
-    save_samples_every=10,
+    save_model_every=4,
+    save_samples_every=4,
     save_model_dir='checkpoints_512_resume',
     save_samples_dir='samples_512_resume',
     resume_ckpt_dir='checkpoints_512/91'
@@ -310,11 +310,6 @@ if __name__ == '__main__':
 
   l_G, l_C, l_IDT, l_D = trainer.train()
 
-  # for item in trainer.train_loader:
-  #   real_A = item['A'].to(trainer.device)
-  #   real_B = item['B'].to(trainer.device)
-  #   trainer.save_samples(1, real_A, real_B)
-  #   break
 
   with open('losses.json', 'w') as f:
     f.writelines(json.dumps({'L_G': l_G, 'L_C': l_C, 'L_IDT': l_IDT, 'L_D': l_D}))
