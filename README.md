@@ -8,15 +8,15 @@ conda env create -f conda_env.yaml
 ##### Data directory structure:
 ```
 .
-└──TactileCycleGAN
-                └──src
-                └── data/
-                    ├── train/
-                    │   ├── rgb
-                    │   └── tactile
-                    └── val/
-                        ├── rgb
-                        └── tactile
+└──TactileCycleGAN/
+                  └── src
+                  └── data/
+                      ├── train/
+                      │   ├── rgb
+                      │   └── tactile
+                      └── val/
+                          ├── rgb
+                          └── tactile
 ```
 
 
