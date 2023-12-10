@@ -2,7 +2,7 @@
 
 ##### Installation setup
 ```shell
-conda create -f conda_env.yaml
+conda env create -f conda_env.yaml
 ```
 
 ##### Data directory structure:
