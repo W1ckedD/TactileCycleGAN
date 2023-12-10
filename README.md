@@ -6,6 +6,7 @@ conda create -f conda_env.yaml
 ```
 
 ##### Data directory structure:
+.
 └── data/
     ├── train/
     │   ├── rgb
