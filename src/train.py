@@ -229,12 +229,13 @@ class Trainer:
     return loss_D
   
   def train(self):
-    print(f'Resuming training from checkpint path: {self.resume_ckpt_dir}...')
-    print('Please make sure to use a different save path to prevent overwriting the previous checkpoints.')
-    user_response = input('DO YOU WISH TO PROCEED?: [yes/no]')
-    if user_response.upper() != 'YES':
-      print('Training loop stopped.')
-      return
+    if self.resume_ckpt_dir:
+      print(f'Resuming training from checkpint path: {self.resume_ckpt_dir}...')
+      print('Please make sure to use a different save path to prevent overwriting the previous checkpoints.')
+      user_response = input('DO YOU WISH TO PROCEED?: [yes/no]')
+      if user_response.upper() != 'YES':
+        print('Training loop stopped.')
+        return
     print(f"Training Discriminators every {self.train_D_every} epochs...")
     print(f"Saving model snapshots every {self.save_model_every} epochs...")
     print(f"Saving samples every {self.save_samples_every} epochs...")
@@ -297,15 +298,16 @@ class Trainer:
 
 if __name__ == '__main__':
   trainer = Trainer(
-    img_size=(512, 512),
+    img_size=(256, 256),
     epochs=100,
-    batch_size=16,
+    batch_size=20,
     shuffle=True,
+    train_D_every=5,
     save_model_every=4,
     save_samples_every=4,
-    save_model_dir='checkpoints_512_resume',
-    save_samples_dir='samples_512_resume',
-    resume_ckpt_dir='checkpoints_512/91'
+    save_model_dir='checkpoints',
+    save_samples_dir='samples',
+    # resume_ckpt_dir='checkpoints/91'
   )
 
   l_G, l_C, l_IDT, l_D = trainer.train()
