@@ -6,6 +6,7 @@ conda create -f conda_env.yaml
 ```
 
 ##### Data directory structure:
+```
 .
 └── data/
     ├── train/
@@ -14,6 +15,7 @@ conda create -f conda_env.yaml
     └── val/
         ├── rgb
         └── tactile
+```
 
 
 ##### Training the model
